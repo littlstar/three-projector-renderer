@@ -1,0 +1,12 @@
+{
+  "name": "three-projector-renderer",
+  "version": "0.0.1",
+  "repo": "littlstar/three-projector-renderer",
+  "description": "three.js projector renderer",
+  "license": "MIT",
+  "main": "index.js",
+  "scripts": ["index.js"],
+  "development": {
+    "components/three.js": "*"
+  }
+}
