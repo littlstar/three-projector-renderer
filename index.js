@@ -12,6 +12,7 @@ module.exports = function (THREE) {
 
     this.object = null;
     this.z = 0;
+    this.renderOrder = 0;
 
   };
 
@@ -35,6 +36,7 @@ module.exports = function (THREE) {
     this.uvs = [ new THREE.Vector2(), new THREE.Vector2(), new THREE.Vector2() ];
 
     this.z = 0;
+    this.renderOrder = 0;
 
   };
 
@@ -70,6 +72,7 @@ module.exports = function (THREE) {
     this.material = null;
 
     this.z = 0;
+    this.renderOrder = 0;
 
   };
 
@@ -89,6 +92,7 @@ module.exports = function (THREE) {
     this.scale = new THREE.Vector2();
 
     this.material = null;
+    this.renderOrder = 0;
 
   };
 
@@ -159,7 +163,7 @@ module.exports = function (THREE) {
 
       var normalMatrix = new THREE.Matrix3();
 
-      var setObject = function ( value ) {
+      function setObject( value ) {
 
         object = value;
         material = object.material;
@@ -169,9 +173,9 @@ module.exports = function (THREE) {
         normals.length = 0;
         uvs.length = 0;
 
-      };
+      }
 
-      var projectVertex = function ( vertex ) {
+      function projectVertex( vertex ) {
 
         var position = vertex.position;
         var positionWorld = vertex.positionWorld;
@@ -190,30 +194,30 @@ module.exports = function (THREE) {
           positionScreen.y >= - 1 && positionScreen.y <= 1 &&
           positionScreen.z >= - 1 && positionScreen.z <= 1;
 
-      };
+      }
 
-      var pushVertex = function ( x, y, z ) {
+      function pushVertex( x, y, z ) {
 
         _vertex = getNextVertexInPool();
         _vertex.position.set( x, y, z );
 
         projectVertex( _vertex );
 
-      };
+      }
 
-      var pushNormal = function ( x, y, z ) {
+      function pushNormal( x, y, z ) {
 
         normals.push( x, y, z );
 
-      };
+      }
 
-      var pushUv = function ( x, y ) {
+      function pushUv( x, y ) {
 
         uvs.push( x, y );
 
-      };
+      }
 
-      var checkTriangleVisibility = function ( v1, v2, v3 ) {
+      function checkTriangleVisibility( v1, v2, v3 ) {
 
         if ( v1.visible === true || v2.visible === true || v3.visible === true ) return true;
 
@@ -221,20 +225,20 @@ module.exports = function (THREE) {
         _points3[ 1 ] = v2.positionScreen;
         _points3[ 2 ] = v3.positionScreen;
 
-        return _clipBox.isIntersectionBox( _boundingBox.setFromPoints( _points3 ) );
+        return _clipBox.intersectsBox( _boundingBox.setFromPoints( _points3 ) );
 
-      };
+      }
 
-      var checkBackfaceCulling = function ( v1, v2, v3 ) {
+      function checkBackfaceCulling( v1, v2, v3 ) {
 
         return ( ( v3.positionScreen.x - v1.positionScreen.x ) *
                 ( v2.positionScreen.y - v1.positionScreen.y ) -
                 ( v3.positionScreen.y - v1.positionScreen.y ) *
                 ( v2.positionScreen.x - v1.positionScreen.x ) ) < 0;
 
-      };
+      }
 
-      var pushLine = function ( a, b ) {
+      function pushLine( a, b ) {
 
         var v1 = _vertexPool[ a ];
         var v2 = _vertexPool[ b ];
@@ -245,14 +249,15 @@ module.exports = function (THREE) {
         _line.v1.copy( v1 );
         _line.v2.copy( v2 );
         _line.z = ( v1.positionScreen.z + v2.positionScreen.z ) / 2;
+        _line.renderOrder = object.renderOrder;
 
         _line.material = object.material;
 
         _renderData.elements.push( _line );
 
-      };
+      }
 
-      var pushTriangle = function ( a, b, c ) {
+      function pushTriangle( a, b, c ) {
 
         var v1 = _vertexPool[ a ];
         var v2 = _vertexPool[ b ];
@@ -269,19 +274,21 @@ module.exports = function (THREE) {
           _face.v2.copy( v2 );
           _face.v3.copy( v3 );
           _face.z = ( v1.positionScreen.z + v2.positionScreen.z + v3.positionScreen.z ) / 3;
+          _face.renderOrder = object.renderOrder;
+
+          // use first vertex normal as face normal
+
+          _face.normalModel.fromArray( normals, a * 3 );
+          _face.normalModel.applyMatrix3( normalMatrix ).normalize();
 
           for ( var i = 0; i < 3; i ++ ) {
 
-            var offset = arguments[ i ] * 3;
             var normal = _face.vertexNormalsModel[ i ];
-
-            normal.set( normals[ offset ], normals[ offset + 1 ], normals[ offset + 2 ] );
+            normal.fromArray( normals, arguments[ i ] * 3 );
             normal.applyMatrix3( normalMatrix ).normalize();
 
-            var offset2 = arguments[ i ] * 2;
-
             var uv = _face.uvs[ i ];
-            uv.set( uvs[ offset2 ], uvs[ offset2 + 1 ] );
+            uv.fromArray( uvs, arguments[ i ] * 2 );
 
           }
 
@@ -293,7 +300,7 @@ module.exports = function (THREE) {
 
         }
 
-      };
+      }
 
       return {
         setObject: setObject,
@@ -320,7 +327,7 @@ module.exports = function (THREE) {
       _renderData.elements.length = 0;
 
       if ( scene.autoUpdate === true ) scene.updateMatrixWorld();
-      if ( camera.parent === undefined ) camera.updateMatrixWorld();
+      if ( camera.parent === null ) camera.updateMatrixWorld();
 
       _viewMatrix.copy( camera.matrixWorldInverse.getInverse( camera.matrixWorld ) );
       _viewProjectionMatrix.multiplyMatrices( camera.projectionMatrix, _viewMatrix );
@@ -342,7 +349,9 @@ module.exports = function (THREE) {
 
         } else if ( object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Sprite ) {
 
-          if ( object.material.visible === false ) return;
+          var material = object.material;
+
+          if ( material.visible === false ) return;
 
           if ( object.frustumCulled === false || _frustum.intersectsObject( object ) === true ) {
 
@@ -353,6 +362,7 @@ module.exports = function (THREE) {
             _vector3.setFromMatrixPosition( object.matrixWorld );
             _vector3.applyProjection( _viewProjectionMatrix );
             _object.z = _vector3.z;
+            _object.renderOrder = object.renderOrder;
 
             _renderData.objects.push( _object );
 
@@ -386,7 +396,7 @@ module.exports = function (THREE) {
           if ( geometry instanceof THREE.BufferGeometry ) {
 
             var attributes = geometry.attributes;
-            var offsets = geometry.offsets;
+            var groups = geometry.groups;
 
             if ( attributes.position === undefined ) continue;
 
@@ -422,20 +432,19 @@ module.exports = function (THREE) {
 
             }
 
-            if ( attributes.index !== undefined ) {
+            if ( geometry.index !== null ) {
 
-              var indices = attributes.index.array;
+              var indices = geometry.index.array;
 
-              if ( offsets.length > 0 ) {
+              if ( groups.length > 0 ) {
 
-                for ( var o = 0; o < offsets.length; o ++ ) {
+                for ( var o = 0; o < groups.length; o ++ ) {
 
-                  var offset = offsets[ o ];
-                  var index = offset.index;
+                  var group = groups[ o ];
 
-                  for ( var i = offset.start, l = offset.start + offset.count; i < l; i += 3 ) {
+                  for ( var i = group.start, l = group.start + group.count; i < l; i += 3 ) {
 
-                    renderList.pushTriangle( indices[ i ] + index, indices[ i + 1 ] + index, indices[ i + 2 ] + index );
+                    renderList.pushTriangle( indices[ i ], indices[ i + 1 ], indices[ i + 2 ] );
 
                   }
 
@@ -471,7 +480,7 @@ module.exports = function (THREE) {
 
             var material = object.material;
 
-            var isFaceMaterial = material instanceof THREE.MeshFaceMaterial;
+            var isFaceMaterial = material instanceof THREE.MultiMaterial;
             var objectMaterials = isFaceMaterial === true ? object.material : null;
 
             for ( var v = 0, vl = vertices.length; v < vl; v ++ ) {
@@ -510,7 +519,7 @@ module.exports = function (THREE) {
 
               var face = faces[ f ];
 
-              var material = isFaceMaterial === true
+              material = isFaceMaterial === true
                 ? objectMaterials.materials[ face.materialIndex ]
                 : object.material;
 
@@ -527,8 +536,10 @@ module.exports = function (THREE) {
                 var visible = renderList.checkBackfaceCulling( v1, v2, v3 );
 
                 if ( side !== THREE.DoubleSide ) {
+
                   if ( side === THREE.FrontSide && visible === false ) continue;
                   if ( side === THREE.BackSide && visible === true ) continue;
+
                 }
 
                 _face = getNextFaceInPool();
@@ -583,6 +594,7 @@ module.exports = function (THREE) {
                 _face.material = material;
 
                 _face.z = ( v1.positionScreen.z + v2.positionScreen.z + v3.positionScreen.z ) / 3;
+                _face.renderOrder = object.renderOrder;
 
                 _renderData.elements.push( _face );
 
@@ -606,9 +618,9 @@ module.exports = function (THREE) {
 
               }
 
-              if ( attributes.index !== undefined ) {
+              if ( geometry.index !== null ) {
 
-                var indices = attributes.index.array;
+                var indices = geometry.index.array;
 
                 for ( var i = 0, l = indices.length; i < l; i += 2 ) {
 
@@ -618,7 +630,7 @@ module.exports = function (THREE) {
 
               } else {
 
-                var step = object.mode === THREE.LinePieces ? 2 : 1;
+                var step = object instanceof THREE.LineSegments ? 2 : 1;
 
                 for ( var i = 0, l = ( positions.length / 3 ) - 1; i < l; i += step ) {
 
@@ -641,8 +653,7 @@ module.exports = function (THREE) {
             v1 = getNextVertexInPool();
             v1.positionScreen.copy( vertices[ 0 ] ).applyMatrix4( _modelViewProjectionMatrix );
 
-            // Handle LineStrip and LinePieces
-            var step = object.mode === THREE.LinePieces ? 2 : 1;
+            var step = object instanceof THREE.LineSegments ? 2 : 1;
 
             for ( var v = 1, vl = vertices.length; v < vl; v ++ ) {
 
@@ -669,6 +680,7 @@ module.exports = function (THREE) {
                 _line.v2.positionScreen.copy( _clippedVertex2PositionScreen );
 
                 _line.z = Math.max( _clippedVertex1PositionScreen.z, _clippedVertex2PositionScreen.z );
+                _line.renderOrder = object.renderOrder;
 
                 _line.material = object.material;
 
@@ -703,6 +715,7 @@ module.exports = function (THREE) {
             _sprite.x = _vector4.x * invW;
             _sprite.y = _vector4.y * invW;
             _sprite.z = _vector4.z;
+            _sprite.renderOrder = object.renderOrder;
             _sprite.object = object;
 
             _sprite.rotation = object.rotation;
@@ -788,8 +801,8 @@ module.exports = function (THREE) {
         var line = new THREE.RenderableLine();
         _linePool.push( line );
         _linePoolLength ++;
-        _lineCount ++
-          return line;
+        _lineCount ++;
+        return line;
 
       }
 
@@ -804,8 +817,8 @@ module.exports = function (THREE) {
         var sprite = new THREE.RenderableSprite();
         _spritePool.push( sprite );
         _spritePoolLength ++;
-        _spriteCount ++
-          return sprite;
+        _spriteCount ++;
+        return sprite;
 
       }
 
@@ -817,7 +830,11 @@ module.exports = function (THREE) {
 
     function painterSort( a, b ) {
 
-      if ( a.z !== b.z ) {
+      if ( a.renderOrder !== b.renderOrder ) {
+
+        return a.renderOrder - b.renderOrder;
+
+      } else if ( a.z !== b.z ) {
 
         return b.z - a.z;
 
@@ -904,6 +921,5 @@ module.exports = function (THREE) {
     }
 
   };
-
   return THREE.Projector;
 };
