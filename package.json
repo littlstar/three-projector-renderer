@@ -1,5 +1,5 @@
 {
-  "name": "@littlstar/three-projector-renderer",
+  "name": "three-projector-renderer",
   "version": "1.0.0",
   "description": "projector renderer for three.js",
   "main": "index.js",
