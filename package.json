@@ -1,6 +1,6 @@
 {
   "name": "three-projector-renderer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "projector renderer for three.js",
   "main": "index.js",
   "repository": {
